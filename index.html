@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Женя и кровавые пенисы</title>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      overflow: hidden;
+      color: white;
+      text-align: center;
+      font-family: sans-serif;
+    }
+    canvas {
+      display: block;
+      margin: auto;
+      background: white;
+    }
+    #controls {
+  position: absolute;
+  bottom: 10px; /* Расположение кнопок немного ниже */
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 30px; /* Расстояние между кнопками */
+  z-index: 5;
+}
+
+.btn {
+  padding: 12px 20px; /* Размер кнопок */
+  background: #333;
+  color: white;
+  font-size: 18px; /* Размер шрифта */
+  border: none;
+  border-radius: 15px; /* Скругленные углы */
+  width: 100px; /* Ширина кнопок */
+  transition: transform 0.3s; /* Плавный переход при изменении размера */
+}
+
+.btn:hover {
+  transform: scale(1.05); /* Эффект увеличения кнопок при наведении */
+}
+
+.btn:active {
+  transform: scale(1.2); /* Эффект увеличения при нажатии */
+}
+    
+    #startScreen, #gameOverScreen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+    }
+    #startBtn, #restartBtn {
+      padding: 20px 40px;
+      font-size: 30px;
+      background: red;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <audio id="splatSound" src="https://media.vocaroo.com/mp3/1fKqW2F3mYoC"></audio>
+  <audio id="knifeCatchSound" src="https://media.vocaroo.com/mp3/16VIUYwngXfP"></audio>
+
+  <div id="startScreen">
+    <h1>Dicks Rain Rudenko</h1>
+    <button id="startBtn">Начать игру</button>
+  </div>
+
+  <canvas id="game" width="400" height="600"></canvas>
+
+  <div id="controls">
+    <button class="btn" id="leftBtn">◀️ Влево</button>
+    <button class="btn" id="rightBtn">Вправо ▶️</button>
+  </div>
+
+  <div id="gameOverScreen" style="display: none;">
+    <h1>Ты проебал, дурачок</h1>
+    <p>Ваш счёт: <span id="finalScore"></span></p>
+    <button id="restartBtn">Начать заново</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const splatSound = document.getElementById("splatSound");
+    const knifeCatchSound = document.getElementById("knifeCatchSound");
+
+    const obstacleImage = new Image();
+    obstacleImage.src = "https://wdfiles.ru/plugins/imageviewer/site/thumb.php?s=2a36p&/6830721.png";
+
+    const playerImage = new Image();
+    playerImage.src = "https://wdfiles.ru/plugins/imageviewer/site/thumb.php?s=2a36D&/IMG_20250508_024047_173.jpg";
+
+    const knifeImage = new Image();
+    knifeImage.src = "https://wdfiles.ru/plugins/imageviewer/site/thumb.php?s=2a37p&/512.png";
+
+    const player = { x: 180, y: 530, w: 60, h: 70, speed: 30 };
+
+    let keys = {}, obstacles = [], knives = [], blood = [];
+    let score = 0, lives = 5, gameOver = false, gameStarted = false;
+    let obstacleSpeed = 1.2;
+    const maxObstacleSpeed = 3.5;
+    const speedIncreaseRate = 0.001;
+    let spawnInterval, spawnKnifeInterval;
+
+    document.addEventListener("keydown", e => keys[e.key] = true);
+    document.addEventListener("keyup", e => keys[e.key] = false);
+    document.getElementById("leftBtn").addEventListener("click", () => player.x -= player.speed);
+    document.getElementById("rightBtn").addEventListener("click", () => player.x += player.speed);
+
+    document.getElementById("startBtn").addEventListener("click", () => {
+      document.getElementById("startScreen").style.display = "none";
+      startGame();
+    });
+
+    document.getElementById("restartBtn").addEventListener("click", () => {
+      document.getElementById("gameOverScreen").style.display = "none";
+      startGame();
+    });
+
+    function startGame() {
+      score = 0;
+      lives = 5;
+      obstacles = [];
+      knives = [];
+      blood = [];
+      obstacleSpeed = 1.2;
+      gameOver = false;
+      gameStarted = true;
+
+      if (spawnInterval) clearInterval(spawnInterval);
+      if (spawnKnifeInterval) clearInterval(spawnKnifeInterval);
+
+      spawnInterval = setInterval(spawnObstacle, 800);
+      spawnKnifeInterval = setInterval(spawnKnife, 4000);
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function spawnObstacle() {
+      if (!gameStarted || obstacles.length > 50) return;
+      const size = 30;
+      const x = Math.random() * (canvas.width - size);
+      obstacles.push({ x, y: -size, w: size, h: size, speed: obstacleSpeed });
+    }
+
+    function spawnKnife() {
+      if (!gameStarted || knives.length > 6) return;
+      const size = 50;
+      const x = Math.random() * (canvas.width - size);
+      knives.push({ x, y: -size, w: size, h: size, speed: obstacleSpeed });
+    }
+
+    function drawPlayer() {
+      ctx.drawImage(playerImage, player.x, player.y, player.w, player.h);
+    }
+
+    function drawObstacles() {
+      for (let i = 0; i < obstacles.length; i++) {
+        const obs = obstacles[i];
+        ctx.drawImage(obstacleImage, obs.x, obs.y, obs.w, obs.h);
+        obs.y += obs.speed;
+
+        if (obs.y > canvas.height) {
+          obstacles.splice(i, 1);
+          score++;
+          i--;
+        } else if (checkCollision(player, obs)) {
+          lives--;
+          splatSound.play();
+          generateBlood(player.x + player.w / 2, player.y + player.h / 2);
+          obstacles.splice(i, 1);
+          i--;
+        }
+      }
+    }
+
+    function drawKnives() {
+      for (let i = 0; i < knives.length; i++) {
+        const knife = knives[i];
+        ctx.drawImage(knifeImage, knife.x, knife.y, knife.w, knife.h);
+        knife.y += knife.speed;
+
+        if (knife.y > canvas.height) {
+          knives.splice(i, 1);
+          i--;
+        } else if (checkCollision(player, knife)) {
+          score += 20;
+          knifeCatchSound.play();
+          knives.splice(i, 1);
+          i--;
+        }
+      }
+    }
+
+    function checkCollision(a, b) {
+      return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+
+    function updatePlayer() {
+      if (keys["ArrowLeft"]) player.x -= player.speed;
+      if (keys["ArrowRight"]) player.x += player.speed;
+      if (player.x < 0) player.x = 0;
+      if (player.x > canvas.width - player.w) player.x = canvas.width - player.w;
+    }
+
+    function drawScore() {
+      ctx.fillStyle = "#000";
+      ctx.font = "20px monospace";
+      ctx.fillText("Score: " + score, 10, 30);
+      ctx.fillText("Lives: " + lives, 10, 60);
+    }
+
+    function generateBlood(x, y) {
+      for (let i = 0; i < 200; i++) {
+        blood.push({
+          x, y,
+          vx: (Math.random() - 0.5) * 10,
+          vy: (Math.random() - 0.5) * 10,
+          radius: Math.random() * 2 + 1,
+          alpha: 1
+        });
+      }
+    }
+
+    function drawBlood() {
+      for (let i = 0; i < blood.length; i++) {
+        let b = blood[i];
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(255,0,0,${b.alpha})`;
+        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+        ctx.fill();
+        b.x += b.vx;
+        b.y += b.vy;
+        b.vx *= 0.95;
+        b.vy *= 0.95;
+        b.alpha -= 0.01;
+        if (b.alpha <= 0) {
+          blood.splice(i, 1);
+          i--;
+        }
+      }
+    }
+
+    function gameLoop() {
+      if (gameOver) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawPlayer();
+      drawObstacles();
+      drawKnives();
+      updatePlayer();
+      drawScore();
+      drawBlood();
+
+      if (obstacleSpeed < maxObstacleSpeed) {
+        obstacleSpeed += speedIncreaseRate;
+      }
+
+      if (lives <= 0) {
+        gameOver = true;
+        clearInterval(spawnInterval);
+        clearInterval(spawnKnifeInterval);
+        document.getElementById("finalScore").innerText = score;
+        document.getElementById("gameOverScreen").style.display = "flex";
+        return;
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+  </script>
+</body>
+</html>
